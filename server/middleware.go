@@ -13,12 +13,12 @@ type Middleware struct {
 	mux http.Handler
 }
 
-type contextString string
+type contextValueKey string
 
 var (
-	user             contextString = "user"
-	requestStartTime contextString = "__request_start_time__"
-	cid              contextString = "cid"
+	user             contextValueKey = "user"
+	requestStartTime contextValueKey = "__request_start_time__"
+	cid              contextValueKey = "cid"
 )
 
 func (m Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
