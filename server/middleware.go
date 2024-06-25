@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -23,7 +24,6 @@ var (
 
 // TODO: Improve this middleware as well and add another one like an interceptor
 // to add metadata to the outgoing requests.
-// And yeah add the loggers to this stuff as well.
 func (m Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), user, "otmane_kimdil")
 	ctx = context.WithValue(ctx, requestStartTime, time.Now())
@@ -36,6 +36,13 @@ func (m Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		log.Fatalln("cannot get data from context conversion went wrong")
 	}
-	log.Println("request duration: ", time.Since(start))
-	log.Println("request ID: ", req.Context().Value(cid))
+	slog.Info("Request",
+		"origin", r.RemoteAddr,
+		"method", r.Method,
+		"url", r.URL,
+		"host", r.Host,
+		"user-agent", r.UserAgent(),
+        "request ID: ", req.Context().Value(cid),
+        "request duration: ", time.Since(start),
+	)
 }

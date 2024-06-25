@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,8 +16,8 @@ import (
 )
 
 type BackendServer struct {
-	address   string
-	isHealthy atomic.Value
+	Address   string
+	IsHealthy atomic.Value
 	ID        int
 }
 
@@ -28,32 +27,11 @@ type Server struct {
 	currentIndex   int32
 }
 
-// TODO: Remove the hard coded list from here and get it from the config.
-func NewServer(Addr string) *Server {
+func NewServer(Addr string, backendServers []BackendServer) *Server {
 	return &Server{
-		Addr: Addr,
-		backendServers: []BackendServer{
-			createHealthyBackend("http://localhost:8081"),
-			createHealthyBackend("http://localhost:8082"),
-			createHealthyBackend("http://localhost:8083"),
-			createHealthyBackend("http://localhost:8084"),
-		},
+		Addr:           Addr,
+		backendServers: backendServers,
 	}
-}
-
-func createHealthyBackend(address string) BackendServer {
-	var healthStatus atomic.Value
-	healthStatus.Store(true) // Initializing the health status to true
-	return BackendServer{
-		address:   address,
-		isHealthy: healthStatus,
-	}
-}
-
-var interruptSignal = []os.Signal{
-	os.Interrupt,
-	syscall.SIGTERM,
-	syscall.SIGINT,
 }
 
 func (s *Server) Start() {
@@ -67,7 +45,7 @@ func (s *Server) Start() {
 		Handler:      Middleware{mux: mux},
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), interruptSignal...)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT)
 	defer cancel()
 
 	log.Println("Server is up and running on port", s.Addr)
@@ -87,68 +65,50 @@ func (s *Server) Start() {
 }
 
 func (s *Server) healthChecker() {
-	ticker := time.NewTicker(time.Second * 2)
+	ticker := time.NewTicker(time.Second * 8)
 	for range ticker.C {
-		fmt.Println("healh checking ...")
+		fmt.Println("health checking ...")
 		go ping(s.backendServers)
 	}
 }
 
-func ping(servers []BackendServer) {
-	for _, server := range servers {
-		res, err := http.Get(server.address)
-		if err != nil || res.StatusCode != http.StatusOK {
-			fmt.Printf("This fucking server: %s is fucking unhealthy\n", server.address)
-			server.isHealthy.Store(false)
-		} else {
-			server.isHealthy.Store(true)
-		}
-	}
-}
-
-// FIXME: In case something went down we have to go to the next server and in case all of them are down we have to return an error
-// Beause atm we have a bug here
 func (s *Server) handleLBRequest(w http.ResponseWriter, r *http.Request) {
-    logRequest(r)
-	nextUrl := s.GetNextServer().address
-	url, err := url.Parse(nextUrl+"/healthz")
-	if err != nil {
-		panic(err)
+	for i := 0; i < len(s.backendServers); i++ {
+		nextServer := s.GetNextServer()
+		if !nextServer.IsHealthy.Load().(bool) {
+			log.Printf("Skipping unhealthy server: %s\n", nextServer.Address)
+			continue
+		}
+
+		proxyURL, err := url.Parse(nextServer.Address + "/healthz")
+		if err != nil {
+			http.Error(w, "Error parsing URL", http.StatusInternalServerError)
+			return
+		}
+
+		client := http.Client{}
+		request := &http.Request{
+			Method: r.Method,
+			URL:    proxyURL,
+			Header: r.Header,
+		}
+
+		res, err := client.Do(request)
+		if err != nil {
+			log.Printf("Error contacting backend server: %v\n", err)
+			continue
+		}
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			http.Error(w, "Error reading response", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(res.StatusCode)
+		_, _ = w.Write(body)
+		return
 	}
-
-	client := http.Client{}
-	request := &http.Request{
-		Method: r.Method,
-		URL:    url,
-	}
-	res, err := client.Do(request)
-	if err != nil {
-		panic(err)
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("******** RESPONSE *********", string(body))
-	w.WriteHeader(res.StatusCode)
-	_, _ = w.Write(body)
-}
-
-// GetNextServer returns the next backend server using round-robin scheduling
-func (s *Server) GetNextServer() *BackendServer {
-	index := atomic.AddInt32(&s.currentIndex, 1) % int32(len(s.backendServers))
-	return &s.backendServers[index]
-}
-
-func logRequest(r *http.Request) {
-	slog.Info("Request",
-		"origin", r.RemoteAddr,
-		"method", r.Method,
-		"url", r.URL,
-		"host", r.Host,
-		"user-agent", r.UserAgent(),
-	)
+	http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 }
