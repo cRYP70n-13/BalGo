@@ -21,6 +21,9 @@ var (
 	cid              contextValueKey = "cid"
 )
 
+// TODO: Improve this middleware as well and add another one like an interceptor
+// to add metadata to the outgoing requests.
+// And yeah add the loggers to this stuff as well.
 func (m Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), user, "otmane_kimdil")
 	ctx = context.WithValue(ctx, requestStartTime, time.Now())

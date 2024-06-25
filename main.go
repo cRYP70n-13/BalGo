@@ -14,12 +14,12 @@ func main() {
 	}
 	defer file.Close()
 
-    conf, err := config.Load(file)
+	conf, err := config.Load(file)
 	if err != nil {
 		panic(err)
 	}
-    log.Println(conf)
+	log.Println(conf)
 
 	s := server.NewServer("localhost:4000")
-    s.Start()
+	s.Start()
 }

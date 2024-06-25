@@ -1,22 +1,22 @@
 # TODO: Add replicas in the future
 # Add strategy for each server as well
 services:
-  - name: server1
+  - name: alpha
     address: 127.0.0.1:8081
     strategy: round_robin
     replicas:
       - address: 127.0.0.1:80812
-  - name: server2
+  - name: beta
     address: 127.0.0.1:8082
     strategy: round_robin
     replicas:
       - address: 127.0.0.1:80822
-  - name: server3
+  - name: gama
     address: 127.0.0.1:8083
     strategy: round_robin
     replicas:
       - address: 127.0.0.1:80832
-  - name: server4
+  - name: sigma
     address: 127.0.0.1:8084
     strategy: round_robin
     replicas:
