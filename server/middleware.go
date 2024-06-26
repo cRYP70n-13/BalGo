@@ -42,7 +42,7 @@ func (m Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"url", r.URL,
 		"host", r.Host,
 		"user-agent", r.UserAgent(),
-        "request ID: ", req.Context().Value(cid),
-        "request duration: ", time.Since(start),
+		"request ID: ", req.Context().Value(cid),
+		"request duration: ", time.Since(start),
 	)
 }

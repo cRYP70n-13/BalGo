@@ -46,7 +46,7 @@ func (s *Server) StopHealthChecker() {
 // ping checks the health of each backend server
 func ping(servers []BackendServer) {
 	for _, server := range servers {
-		res, err := http.Get(server.Address + "/healthz")
+		res, err := http.Get(server.Address)
 		if err != nil || res.StatusCode != http.StatusOK {
 			fmt.Printf("Server %s is unhealthy\n", server.Address)
 			server.IsHealthy.Store(false)

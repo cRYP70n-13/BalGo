@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"io"
 	"log"
 	"net/http"
@@ -55,20 +56,12 @@ func (s *Server) Start() {
 		}
 	}()
 
-	go s.healthChecker()
+	go s.StartHealthChecker()
 
 	<-ctx.Done()
 	log.Println("HTTP server shutting down gracefully...")
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("server shutdown returned an err: %v\n", err)
-	}
-}
-
-func (s *Server) healthChecker() {
-	ticker := time.NewTicker(time.Second * 8)
-	for range ticker.C {
-		fmt.Println("health checking ...")
-		go ping(s.backendServers)
 	}
 }
 
@@ -80,16 +73,18 @@ func (s *Server) handleLBRequest(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		proxyURL, err := url.Parse(nextServer.Address + "/healthz")
+		targetUrl, err := url.Parse(nextServer.Address + "/healthz")
 		if err != nil {
 			http.Error(w, "Error parsing URL", http.StatusInternalServerError)
 			return
 		}
 
+		fmt.Println("***** TARGET_URL *******", targetUrl)
+
 		client := http.Client{}
 		request := &http.Request{
 			Method: r.Method,
-			URL:    proxyURL,
+			URL:    targetUrl,
 			Header: r.Header,
 		}
 
